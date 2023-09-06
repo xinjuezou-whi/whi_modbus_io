@@ -1,2 +1,5 @@
 whi_modbus_io:
-  dummy: 0
+  hardware_interface:
+    module: DAQM-43xx
+    port: /dev/ttyUSB0
+    baudrate: 9600
