@@ -3,3 +3,14 @@ whi_modbus_io:
     module: DAQM-43xx
     port: /dev/ttyUSB0
     baudrate: 9600
+  inputs:
+    - name: ur_started
+      register: 1
+      level: 1
+  outputs:
+    - name: servo_power_on
+      register: 17
+      level: 1
+    - name: limit_switch
+      register: 18
+      level: 1

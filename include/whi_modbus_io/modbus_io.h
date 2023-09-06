@@ -8,6 +8,7 @@ Features:
 Dependencies:
 - sudo apt install ros-<ros distro>-serial
 - sudo usermod -a -G dialout <user name>, the reboot
+- CRC++, https://github.com/d-bahr/CRCpp
 
 Written by Xinjue Zou, xinjue.zou@outlook.com
 
@@ -19,6 +20,8 @@ Changelog:
 2022-xx-xx: xxx
 ******************************************************************/
 #pragma once
+#include "whi_interfaces/WhiIo.h"
+
 #include <ros/ros.h>
 #include <serial/serial.h>
 
@@ -35,6 +38,8 @@ namespace whi_modbus_io
 
     protected:
         void init();
+        bool onServiceIo(whi_interfaces::WhiIo::Request& Request,
+            whi_interfaces::WhiIo::Response& Response);
 
     protected:
         std::shared_ptr<ros::NodeHandle> node_handle_{ nullptr };
@@ -42,5 +47,6 @@ namespace whi_modbus_io
 	    std::string serial_port_;
 	    int baudrate_{ 9600 };
         std::unique_ptr<serial::Serial> serial_inst_{ nullptr };
+        std::unique_ptr<ros::ServiceServer> service_{ nullptr };
 	};
 } // namespace whi_modbus_io

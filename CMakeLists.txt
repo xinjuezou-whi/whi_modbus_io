@@ -11,6 +11,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   std_msgs
   serial
+  whi_interfaces
 )
 
 ## System dependencies are found with CMake's conventions
