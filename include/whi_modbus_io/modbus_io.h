@@ -8,7 +8,6 @@ Features:
 Dependencies:
 - sudo apt install ros-<ros distro>-serial
 - sudo usermod -a -G dialout <user name>, the reboot
-- CRC++, https://github.com/d-bahr/CRCpp
 
 Written by Xinjue Zou, xinjue.zou@outlook.com
 
