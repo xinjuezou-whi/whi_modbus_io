@@ -1,5 +1,5 @@
 # whi_modbus_io
-handle the modbus io device
+Handle the ModBus IO device while advertising the service of IO setting
 
 ## Supported devices
 Currently, only the DAQM-43xx is supported, other devices would be introduced following the requirements change of project
