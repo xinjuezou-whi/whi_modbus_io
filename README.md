@@ -2,6 +2,8 @@
 handle the modbus io device
 
 ## Supported devices
+Currently, only the DAQM-43xx is supported, other devices would be introduced following the requirements change of project
+
 ### DAQM-43xx
 ![image](https://github.com/xinjuezou-whi/whi_modbus_io/assets/72239958/4559a32d-8cd6-460f-b29d-a676bea59959)
 
