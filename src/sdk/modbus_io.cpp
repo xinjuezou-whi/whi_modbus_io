@@ -62,6 +62,8 @@ namespace whi_modbus_io
     void ModbusIo::init()
     {
         // params
+        std::string service;
+        node_handle_->param("service", service, std::string("io_request"));
         node_handle_->param("hardware_interface/module", module_, std::string());
         node_handle_->param("hardware_interface/port", serial_port_, std::string("/dev/ttyUSB0"));
         node_handle_->param("hardware_interface/baudrate", baudrate_, 9600);
@@ -79,7 +81,7 @@ namespace whi_modbus_io
         if (serial_inst_)
         {
             service_ = std::make_unique<ros::ServiceServer>(
-                node_handle_->advertiseService("io_request", &ModbusIo::onServiceIo, this));
+                node_handle_->advertiseService(service, &ModbusIo::onServiceIo, this));
         }
     }
 
@@ -126,13 +128,13 @@ namespace whi_modbus_io
         size_t count = 0;
         while ((count = serial_inst_->available()) <= 0 && tryCount++ < MAX_TRY_COUNT)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
 
+        Response.level = 0;
+        Response.result = false;
         if (tryCount < MAX_TRY_COUNT)
         {
-            Response.result = true;
-
             unsigned char rbuff[count];
 		    size_t readNum = serial_inst_->read(rbuff, count);
             uint16_t crc = crc16(rbuff, readNum - 2);
@@ -140,15 +142,8 @@ namespace whi_modbus_io
             if (crc == readCrc)
             {
                 Response.level = rbuff[3];
+                Response.result = true;
             }
-            else
-            {
-                Response.result = false;
-            }
-        }
-        else
-        {
-            Response.result = false;
         }
 
         return Response.result;

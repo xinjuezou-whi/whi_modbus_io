@@ -1,4 +1,5 @@
 whi_modbus_io:
+  service: io_request
   hardware_interface:
     module: DAQM-43xx
     port: /dev/ttyUSB0
