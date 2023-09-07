@@ -1,6 +1,10 @@
 # whi_modbus_io
 handle the modbus io device
 
+## Supported devices
+### DAQM-43xx
+![image](https://github.com/xinjuezou-whi/whi_modbus_io/assets/72239958/4559a32d-8cd6-460f-b29d-a676bea59959)
+
 ## Dependencies
 ```
 git clone https://github.com/xinjuezou-whi/whi_interfaces.git
