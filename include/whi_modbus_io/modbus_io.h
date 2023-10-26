@@ -7,7 +7,7 @@ Features:
 
 Dependencies:
 - sudo apt install ros-<ros distro>-serial
-- sudo usermod -a -G dialout <user name>, the reboot
+- sudo usermod -a -G dialout <user name>, then reboot
 
 Written by Xinjue Zou, xinjue.zou@outlook.com
 
