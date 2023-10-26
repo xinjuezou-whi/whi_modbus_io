@@ -75,7 +75,7 @@ namespace whi_modbus_io
 	    }
 	    catch (serial::IOException& e)
 	    {
-		    ROS_FATAL_STREAM_NAMED("failed to open serial %s", serial_port_.c_str());
+		    ROS_FATAL_STREAM("failed to open serial " << serial_port_);
 	    }
 
         if (serial_inst_)
