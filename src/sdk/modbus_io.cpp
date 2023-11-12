@@ -85,11 +85,11 @@ namespace whi_modbus_io
         }
     }
 
-    bool ModbusIo::onServiceIo(whi_interfaces::WhiIo::Request& Request,
-        whi_interfaces::WhiIo::Response& Response)
+    bool ModbusIo::onServiceIo(whi_interfaces::WhiSrvIo::Request& Request,
+        whi_interfaces::WhiSrvIo::Response& Response)
     {
         std::array<uint8_t, 8> data;
-        if (Request.operation == whi_interfaces::WhiIo::Request::OPER_READ)
+        if (Request.operation == whi_interfaces::WhiSrvIo::Request::OPER_READ)
         {
             data[0] = 0x01;
             if (Request.reg < 17)
@@ -109,7 +109,7 @@ namespace whi_modbus_io
             data[7] = uint8_t(crc >> 8);
             serial_inst_->write(data.data(), data.size());
         }
-        else if (Request.operation == whi_interfaces::WhiIo::Request::OPER_WRITE)
+        else if (Request.operation == whi_interfaces::WhiSrvIo::Request::OPER_WRITE)
         {
             data[0] = 0x01;
             data[1] = 0x05;

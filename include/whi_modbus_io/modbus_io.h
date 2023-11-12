@@ -19,7 +19,7 @@ Changelog:
 2022-xx-xx: xxx
 ******************************************************************/
 #pragma once
-#include "whi_interfaces/WhiIo.h"
+#include "whi_interfaces/WhiSrvIo.h"
 
 #include <ros/ros.h>
 #include <serial/serial.h>
@@ -37,8 +37,8 @@ namespace whi_modbus_io
 
     protected:
         void init();
-        bool onServiceIo(whi_interfaces::WhiIo::Request& Request,
-            whi_interfaces::WhiIo::Response& Response);
+        bool onServiceIo(whi_interfaces::WhiSrvIo::Request& Request,
+            whi_interfaces::WhiSrvIo::Response& Response);
 
     protected:
         std::shared_ptr<ros::NodeHandle> node_handle_{ nullptr };
