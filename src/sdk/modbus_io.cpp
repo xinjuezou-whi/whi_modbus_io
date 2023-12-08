@@ -17,6 +17,8 @@ All text above must be included in any redistribution.
 ******************************************************************/
 #include "whi_modbus_io/modbus_io.h"
 
+#include <yaml-cpp/yaml.h>
+
 #include <thread>
 
 namespace whi_modbus_io
@@ -53,6 +55,18 @@ namespace whi_modbus_io
 
     ModbusIo::~ModbusIo()
     {
+        // reset to init level
+        for (const auto& it : init_levels_map_)
+        {
+            whi_interfaces::WhiSrvIo::Request request;
+            request.reg = it.first;
+            request.level = it.second;
+            request.operation = whi_interfaces::WhiSrvIo::Request::OPER_WRITE;
+            whi_interfaces::WhiSrvIo::Response response;
+            onServiceIo(request, response);
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(800));
+
 	    if (serial_inst_)
 	    {
 		    serial_inst_->close();
@@ -64,6 +78,11 @@ namespace whi_modbus_io
         // params
         std::string service;
         node_handle_->param("service", service, std::string("io_request"));
+        std::string levelConfig;
+        if (node_handle_->param("init_levels", levelConfig, std::string("init_levels.yaml")))
+        {
+            readInitLevels(levelConfig);
+        }
         node_handle_->param("hardware_interface/module", module_, std::string());
         node_handle_->param("hardware_interface/port", serial_port_, std::string("/dev/ttyUSB0"));
         node_handle_->param("hardware_interface/baudrate", baudrate_, 9600);
@@ -82,6 +101,29 @@ namespace whi_modbus_io
         {
             service_ = std::make_unique<ros::ServiceServer>(
                 node_handle_->advertiseService(service, &ModbusIo::onServiceIo, this));
+        }
+    }
+
+    bool ModbusIo::readInitLevels(const std::string& Config)
+    {
+        try
+        {
+            YAML::Node node = YAML::LoadFile(Config);
+            const auto& levels = node["init_levels"];
+            if (levels)
+            {
+                for (const auto& it : levels)
+                {
+                    init_levels_map_.emplace(std::make_pair(it.first.as<int>(), it.second.as<int>()));
+                }
+            }
+
+            return true;
+        }
+        catch (const std::exception& e)
+        {
+            std::cout << "failed to load init levels config file " << Config << std::endl;
+            return false;
         }
     }
 

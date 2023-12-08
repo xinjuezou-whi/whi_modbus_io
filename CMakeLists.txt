@@ -129,6 +129,7 @@ add_library(${PROJECT_NAME} ${WHI_SDK_SRC})
 
 target_link_libraries(${PROJECT_NAME}
    ${catkin_LIBRARIES}
+   yaml-cpp
 )
 
 # add_library(${PROJECT_NAME}

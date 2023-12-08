@@ -37,6 +37,7 @@ namespace whi_modbus_io
 
     protected:
         void init();
+        bool readInitLevels(const std::string& Config);
         bool onServiceIo(whi_interfaces::WhiSrvIo::Request& Request,
             whi_interfaces::WhiSrvIo::Response& Response);
 
@@ -47,5 +48,6 @@ namespace whi_modbus_io
 	    int baudrate_{ 9600 };
         std::unique_ptr<serial::Serial> serial_inst_{ nullptr };
         std::unique_ptr<ros::ServiceServer> service_{ nullptr };
+        std::map<int, int> init_levels_map_;
 	};
 } // namespace whi_modbus_io

@@ -1,6 +1,7 @@
 whi_modbus_io:
   service: io_request
+  init_levels: /home/whi/catkin_workspace/src/whi_modbus_io/config/init_levels.yaml
   hardware_interface:
     module: DAQM-43xx
-    port: /dev/ttyUSB0
+    port: /dev/io
     baudrate: 9600
