@@ -59,7 +59,7 @@ namespace whi_modbus_io
         for (const auto& it : init_levels_map_)
         {
             whi_interfaces::WhiSrvIo::Request request;
-            request.reg = it.first;
+            request.addr = it.first;
             request.level = it.second;
             request.operation = whi_interfaces::WhiSrvIo::Request::OPER_WRITE;
             whi_interfaces::WhiSrvIo::Response response;
@@ -134,7 +134,7 @@ namespace whi_modbus_io
         if (Request.operation == whi_interfaces::WhiSrvIo::Request::OPER_READ)
         {
             data[0] = 0x01;
-            if (Request.reg < 17)
+            if (Request.addr < 17)
             {
                 data[1] = 0x02;
             }
@@ -143,7 +143,7 @@ namespace whi_modbus_io
                 data[1] = 0x01;
             }
             data[2] = 0;
-            data[3] = Request.reg - 1;
+            data[3] = uint8_t(Request.addr - 1);
             data[4] = 0;
             data[5] = 0x01;
             uint16_t crc = crc16(data.data(), data.size() - 2);
@@ -156,7 +156,7 @@ namespace whi_modbus_io
             data[0] = 0x01;
             data[1] = 0x05;
             data[2] = 0;
-            data[3] = Request.reg - 1;
+            data[3] = uint8_t(Request.addr - 1);
             data[4] = 0;
             data[5] = Request.level;
             uint16_t crc = crc16(data.data(), data.size() - 2);
