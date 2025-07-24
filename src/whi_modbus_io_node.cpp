@@ -6,18 +6,18 @@ Features:
 - xxx
 
 Written by Xinjue Zou, xinjue.zou@outlook.com
+           Yuhang Shang
 
 Apache License Version 2.0, check LICENSE for more information.
 All text above must be included in any redistribution.
 
 Changelog:
 2023-09-06: Initial version
-2022-xx-xx: xxx
+2025-07-24: Migrated from ROS 1
+2025-xx-xx: xxx
 ******************************************************************/
 #include "whi_modbus_io/modbus_io.h"
-
-#include <ros/ros.h>
-
+#include <rclcpp/rclcpp.hpp>
 #include <iostream>
 #include <signal.h>
 #include <functional>
@@ -34,13 +34,14 @@ void signalHandler(int Signal)
 int main(int argc, char** argv)
 {
 	/// node version and copyright announcement
-	std::cout << "\nWHI ModBUS IO VERSION 00.02" << std::endl;
-	std::cout << "Copyright © 2023-2024 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
+	std::cout << "\nWHI ModBUS IO VERSION 02.02.0" << std::endl;
+	std::cout << "Copyright © 2023-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
 	/// ros infrastructure
-    const std::string nodeName("whi_modbus_io"); 
-	ros::init(argc, argv, nodeName);
-	auto nodeHandle = std::make_shared<ros::NodeHandle>(nodeName);
+    const std::string nodeName("whi_modbus_io");
+
+	rclcpp::init(argc, argv);
+	auto nodeHandle = std::make_shared<rclcpp::Node>(nodeName);
 
 	/// node logic
 	auto instance = std::make_unique<whi_modbus_io::ModbusIo>(nodeHandle);
@@ -53,19 +54,18 @@ int main(int argc, char** argv)
 		instance = nullptr;
 
 		// all the default sigint handler does is call shutdown()
-		ros::shutdown();
+		rclcpp::shutdown();
 	};
 
 	/// ros spinner
 	// NOTE: We run the ROS loop in a separate thread as external calls such as
 	// service callbacks to load controllers can block the (main) control loop
 #if ASYNC
-	ros::AsyncSpinner spinner(0);
-	spinner.start();
-	ros::waitForShutdown();
+    auto executor = std::make_shared<rclcpp::executors::MultiThreadedExecutor>();
+    executor->add_node(nodeHandle);
+    executor->spin();  // blocking until shutdown
 #else
-	ros::MultiThreadedSpinner spinner(0);
-	spinner.spin();
+    rclcpp::spin(nodeHandle);
 #endif
 
 	std::cout << nodeName << " exited" << std::endl;

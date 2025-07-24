@@ -47,7 +47,7 @@ namespace whi_modbus_io
         return crc;
     }
 
-    ModbusIo::ModbusIo(std::shared_ptr<ros::NodeHandle>& NodeHandle)
+    ModbusIo::ModbusIo(std::shared_ptr<rclcpp::Node>& NodeHandle)
         : node_handle_(NodeHandle)
     {
         init();
@@ -58,11 +58,11 @@ namespace whi_modbus_io
         // reset to init level
         for (const auto& it : init_levels_map_)
         {
-            whi_interfaces::WhiSrvIo::Request request;
-            request.addr = it.first;
-            request.level = it.second;
-            request.operation = whi_interfaces::WhiSrvIo::Request::OPER_WRITE;
-            whi_interfaces::WhiSrvIo::Response response;
+            auto request = std::make_shared<whi_interfaces::srv::WhiSrvIo::Request>();
+            request->addr = it.first;
+            request->level = it.second;
+            request->operation = whi_interfaces::srv::WhiSrvIo::Request::OPER_WRITE;
+            auto response = std::make_shared<whi_interfaces::srv::WhiSrvIo::Response>();
             onServiceIo(request, response);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
@@ -76,16 +76,15 @@ namespace whi_modbus_io
     void ModbusIo::init()
     {
         // params
-        std::string service;
-        node_handle_->param("service", service, std::string("io_request"));
-        std::string levelConfig;
-        if (node_handle_->param("init_levels", levelConfig, std::string("init_levels.yaml")))
+        std::string service = node_handle_->declare_parameter("service", "io_request");
+        std::string levelConfig = node_handle_->declare_parameter("init_levels", "init_levels.yaml");
+        if (!levelConfig.empty())
         {
             readInitLevels(levelConfig);
         }
-        node_handle_->param("hardware_interface/module", module_, std::string());
-        node_handle_->param("hardware_interface/port", serial_port_, std::string("/dev/ttyUSB0"));
-        node_handle_->param("hardware_interface/baudrate", baudrate_, 9600);
+        module_ = node_handle_->declare_parameter("hardware_interface.module", "");
+        serial_port_ = node_handle_->declare_parameter("hardware_interface.port", "/dev/ttyUSB0");
+        baudrate_ = node_handle_->declare_parameter("hardware_interface.baudrate", 9600);
 
         // serial
 	    try
@@ -94,13 +93,14 @@ namespace whi_modbus_io
 	    }
 	    catch (serial::IOException& e)
 	    {
-		    ROS_FATAL_STREAM("failed to open serial " << serial_port_);
+		    RCLCPP_FATAL_STREAM(node_handle_->get_logger(), "\033[1;31" << "failed to open serial " <<
+                serial_port_ << "\033[0m");
 	    }
 
         if (serial_inst_)
         {
-            service_ = std::make_unique<ros::ServiceServer>(
-                node_handle_->advertiseService(service, &ModbusIo::onServiceIo, this));
+            service_ = node_handle_->create_service<whi_interfaces::srv::WhiSrvIo>(service, 
+                std::bind(&ModbusIo::onServiceIo, this, std::placeholders::_1, std::placeholders::_2));
         }
     }
 
@@ -127,14 +127,14 @@ namespace whi_modbus_io
         }
     }
 
-    bool ModbusIo::onServiceIo(whi_interfaces::WhiSrvIo::Request& Request,
-        whi_interfaces::WhiSrvIo::Response& Response)
+    void ModbusIo::onServiceIo(const std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Request> request,
+        std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Response> response)
     {
         std::array<uint8_t, 8> data;
-        if (Request.operation == whi_interfaces::WhiSrvIo::Request::OPER_READ)
+        if (request->operation == whi_interfaces::srv::WhiSrvIo::Request::OPER_READ)
         {
             data[0] = 0x01;
-            if (Request.addr < 17)
+            if (request->addr < 17)
             {
                 data[1] = 0x02;
             }
@@ -143,7 +143,7 @@ namespace whi_modbus_io
                 data[1] = 0x01;
             }
             data[2] = 0;
-            data[3] = uint8_t(Request.addr - 1);
+            data[3] = uint8_t(request->addr - 1);
             data[4] = 0;
             data[5] = 0x01;
             uint16_t crc = crc16(data.data(), data.size() - 2);
@@ -151,14 +151,14 @@ namespace whi_modbus_io
             data[7] = uint8_t(crc >> 8);
             serial_inst_->write(data.data(), data.size());
         }
-        else if (Request.operation == whi_interfaces::WhiSrvIo::Request::OPER_WRITE)
+        else if (request->operation == whi_interfaces::srv::WhiSrvIo::Request::OPER_WRITE)
         {
             data[0] = 0x01;
             data[1] = 0x05;
             data[2] = 0;
-            data[3] = uint8_t(Request.addr - 1);
+            data[3] = uint8_t(request->addr - 1);
             data[4] = 0;
-            data[5] = Request.level;
+            data[5] = request->level;
             uint16_t crc = crc16(data.data(), data.size() - 2);
             data[6] = uint8_t(crc);
             data[7] = uint8_t(crc >> 8);
@@ -173,8 +173,8 @@ namespace whi_modbus_io
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
 
-        Response.level = 0;
-        Response.result = false;
+        response->level = 0;
+        response->result = false;
         if (tryCount < MAX_TRY_COUNT)
         {
             unsigned char rbuff[count];
@@ -183,11 +183,9 @@ namespace whi_modbus_io
             uint16_t readCrc = rbuff[readNum - 2] | uint16_t(rbuff[readNum - 1] << 8);
             if (crc == readCrc)
             {
-                Response.level = rbuff[3];
-                Response.result = true;
+                response->level = rbuff[3];
+                response->result = true;
             }
         }
-
-        return Response.result;
     }
 } // namespace whi_modbus_io
