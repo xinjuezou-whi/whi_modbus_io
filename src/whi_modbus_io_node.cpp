@@ -6,14 +6,13 @@ Features:
 - xxx
 
 Written by Xinjue Zou, xinjue.zou@outlook.com
-           Yuhang Shang
 
 Apache License Version 2.0, check LICENSE for more information.
 All text above must be included in any redistribution.
 
 Changelog:
 2023-09-06: Initial version
-2025-07-24: Migrated from ROS 1
+2025-07-25: Migrate from ROS 1 by Yuhang Su
 2025-xx-xx: xxx
 ******************************************************************/
 #include "whi_modbus_io/modbus_io.h"
@@ -34,7 +33,7 @@ void signalHandler(int Signal)
 int main(int argc, char** argv)
 {
 	/// node version and copyright announcement
-	std::cout << "\nWHI ModBUS IO VERSION 02.02.0" << std::endl;
+	std::cout << "\nWHI ModBUS IO VERSION 02.02.1" << std::endl;
 	std::cout << "Copyright © 2023-2026 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
 	/// ros infrastructure

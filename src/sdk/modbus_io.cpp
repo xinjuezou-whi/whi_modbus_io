@@ -83,6 +83,7 @@ namespace whi_modbus_io
             readInitLevels(levelConfig);
         }
         module_ = node_handle_->declare_parameter("hardware_interface.module", "");
+        device_addr_ = node_handle_->declare_parameter("hardware_interface.device_addr", 0x01);
         serial_port_ = node_handle_->declare_parameter("hardware_interface.port", "/dev/ttyUSB0");
         baudrate_ = node_handle_->declare_parameter("hardware_interface.baudrate", 9600);
 
@@ -133,7 +134,7 @@ namespace whi_modbus_io
         std::array<uint8_t, 8> data;
         if (request->operation == whi_interfaces::srv::WhiSrvIo::Request::OPER_READ)
         {
-            data[0] = 0x01;
+            data[0] = uint8_t(device_addr_);
             if (request->addr < 17)
             {
                 data[1] = 0x02;
@@ -153,7 +154,7 @@ namespace whi_modbus_io
         }
         else if (request->operation == whi_interfaces::srv::WhiSrvIo::Request::OPER_WRITE)
         {
-            data[0] = 0x01;
+            data[0] = uint8_t(device_addr_);
             data[1] = 0x05;
             data[2] = 0;
             data[3] = uint8_t(request->addr - 1);

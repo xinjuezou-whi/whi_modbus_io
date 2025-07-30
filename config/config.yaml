@@ -4,6 +4,7 @@ whi_modbus_io:
     init_levels: /home/nvidia/ros2_ws/src/whi_modbus_io/config/init_levels.yaml
     hardware_interface:
       module: DAQM-43xx
+      device_addr: 0x02
       port: /dev/ttyUART_485_2
       baudrate: 9600
 
