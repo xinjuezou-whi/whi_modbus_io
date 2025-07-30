@@ -76,7 +76,7 @@ namespace whi_modbus_io
     void ModbusIo::init()
     {
         // params
-        std::string service = node_handle_->declare_parameter("service", "io_request");
+        std::string service = node_handle_->declare_parameter("service", "modbus_io_request");
         std::string levelConfig = node_handle_->declare_parameter("init_levels", "init_levels.yaml");
         if (!levelConfig.empty())
         {
