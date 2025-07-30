@@ -44,6 +44,7 @@ namespace whi_modbus_io
     protected:
         std::shared_ptr<ros::NodeHandle> node_handle_{ nullptr };
         std::string module_;
+        int device_addr_{ 0x01 };
 	    std::string serial_port_;
 	    int baudrate_{ 9600 };
         std::unique_ptr<serial::Serial> serial_inst_{ nullptr };
