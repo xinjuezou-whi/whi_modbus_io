@@ -59,9 +59,9 @@ namespace whi_modbus_io
         for (const auto& it : init_levels_map_)
         {
             auto request = std::make_shared<whi_interfaces::srv::WhiSrvIo::Request>();
-            request->addr = it.first;
-            request->level = it.second;
-            request->operation = whi_interfaces::srv::WhiSrvIo::Request::OPER_WRITE;
+            request->io.addr = it.first;
+            request->io.level = it.second;
+            request->io.operation = whi_interfaces::msg::WhiIo::OPER_WRITE;
             auto response = std::make_shared<whi_interfaces::srv::WhiSrvIo::Response>();
             onServiceIo(request, response);
         }
@@ -77,6 +77,7 @@ namespace whi_modbus_io
     {
         // params
         std::string service = node_handle_->declare_parameter("service", "modbus_io_request");
+        std::string topic = node_handle_->declare_parameter("topic", "modbus_io_request");
         std::string levelConfig = node_handle_->declare_parameter("init_levels", "init_levels.yaml");
         if (!levelConfig.empty())
         {
@@ -102,6 +103,8 @@ namespace whi_modbus_io
         {
             service_ = node_handle_->create_service<whi_interfaces::srv::WhiSrvIo>(service, 
                 std::bind(&ModbusIo::onServiceIo, this, std::placeholders::_1, std::placeholders::_2));
+            subscriber_ = node_handle_->create_subscription<whi_interfaces::msg::WhiIo>(
+                topic, 10, std::bind(&ModbusIo::callbackSub, this, std::placeholders::_1));
         }
     }
 
@@ -128,43 +131,47 @@ namespace whi_modbus_io
         }
     }
 
-    void ModbusIo::onServiceIo(const std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Request> request,
-        std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Response> response)
+    void ModbusIo::composeData(const whi_interfaces::msg::WhiIo& Msg, std::array<uint8_t, 8>& Data)
     {
-        std::array<uint8_t, 8> data;
-        if (request->operation == whi_interfaces::srv::WhiSrvIo::Request::OPER_READ)
+        if (Msg.operation == whi_interfaces::msg::WhiIo::OPER_READ)
         {
-            data[0] = uint8_t(device_addr_);
-            if (request->addr < 17)
+            Data[0] = uint8_t(device_addr_);
+            if (Msg.addr < 17)
             {
-                data[1] = 0x02;
+                Data[1] = 0x02;
             }
             else
             {
-                data[1] = 0x01;
+                Data[1] = 0x01;
             }
-            data[2] = 0;
-            data[3] = uint8_t(request->addr - 1);
-            data[4] = 0;
-            data[5] = 0x01;
-            uint16_t crc = crc16(data.data(), data.size() - 2);
-            data[6] = uint8_t(crc);
-            data[7] = uint8_t(crc >> 8);
-            serial_inst_->write(data.data(), data.size());
+            Data[2] = 0;
+            Data[3] = uint8_t(Msg.addr - 1);
+            Data[4] = 0;
+            Data[5] = 0x01;
+            uint16_t crc = crc16(Data.data(), Data.size() - 2);
+            Data[6] = uint8_t(crc);
+            Data[7] = uint8_t(crc >> 8);
         }
-        else if (request->operation == whi_interfaces::srv::WhiSrvIo::Request::OPER_WRITE)
+        else if (Msg.operation == whi_interfaces::msg::WhiIo::OPER_WRITE)
         {
-            data[0] = uint8_t(device_addr_);
-            data[1] = 0x05;
-            data[2] = 0;
-            data[3] = uint8_t(request->addr - 1);
-            data[4] = 0;
-            data[5] = request->level;
-            uint16_t crc = crc16(data.data(), data.size() - 2);
-            data[6] = uint8_t(crc);
-            data[7] = uint8_t(crc >> 8);
-            serial_inst_->write(data.data(), data.size());
+            Data[0] = uint8_t(device_addr_);
+            Data[1] = 0x05;
+            Data[2] = 0;
+            Data[3] = uint8_t(Msg.addr - 1);
+            Data[4] = 0;
+            Data[5] = Msg.level;
+            uint16_t crc = crc16(Data.data(), Data.size() - 2);
+            Data[6] = uint8_t(crc);
+            Data[7] = uint8_t(crc >> 8);
         }
+    }
+
+    void ModbusIo::onServiceIo(const std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Request> Request,
+        std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Response> Response)
+    {
+        std::array<uint8_t, 8> data;
+        composeData(Request->io, data);
+        serial_inst_->write(data.data(), data.size());
         
         int tryCount = 0;
         const int MAX_TRY_COUNT = 3;
@@ -174,8 +181,8 @@ namespace whi_modbus_io
             std::this_thread::sleep_for(std::chrono::milliseconds(50));
         }
 
-        response->level = 0;
-        response->result = false;
+        Response->level = 0;
+        Response->result = false;
         if (tryCount < MAX_TRY_COUNT)
         {
             unsigned char rbuff[count];
@@ -184,9 +191,16 @@ namespace whi_modbus_io
             uint16_t readCrc = rbuff[readNum - 2] | uint16_t(rbuff[readNum - 1] << 8);
             if (crc == readCrc)
             {
-                response->level = rbuff[3];
-                response->result = true;
+                Response->level = rbuff[3];
+                Response->result = true;
             }
         }
+    }
+
+    void ModbusIo::callbackSub(const whi_interfaces::msg::WhiIo::SharedPtr Msg)
+    {
+        std::array<uint8_t, 8> data;
+        composeData(*Msg, data);
+        serial_inst_->write(data.data(), data.size());
     }
 } // namespace whi_modbus_io

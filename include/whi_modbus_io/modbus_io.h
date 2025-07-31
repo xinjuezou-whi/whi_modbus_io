@@ -22,6 +22,7 @@ Changelog:
 ******************************************************************/
 #pragma once
 #include "whi_interfaces/srv/whi_srv_io.hpp"
+#include <whi_interfaces/msg/whi_io.hpp>
 
 #include <rclcpp/rclcpp.hpp>
 #include <serial/serial.h>
@@ -41,8 +42,10 @@ namespace whi_modbus_io
     protected:
         void init();
         bool readInitLevels(const std::string& Config);
+        void composeData(const whi_interfaces::msg::WhiIo& Msg, std::array<uint8_t, 8>& Data);
         void onServiceIo(const std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Request> Request,
             std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Response> Response);
+        void callbackSub(const whi_interfaces::msg::WhiIo::SharedPtr Msg);
 
     protected:
         std::shared_ptr<rclcpp::Node> node_handle_{ nullptr };
@@ -52,6 +55,7 @@ namespace whi_modbus_io
 	    int baudrate_{ 9600 };
         std::unique_ptr<serial::Serial> serial_inst_{ nullptr };
         rclcpp::Service<whi_interfaces::srv::WhiSrvIo>::SharedPtr service_{ nullptr};
+        rclcpp::Subscription<whi_interfaces::msg::WhiIo>::SharedPtr subscriber_{ nullptr };
         std::map<int, int> init_levels_map_;
 	};
 } // namespace whi_modbus_io

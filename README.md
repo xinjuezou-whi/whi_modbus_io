@@ -27,12 +27,16 @@ whi_modbus_io:
 ## Usage
 Read
 ```
-ros2 service call /modbus_io_request whi_interfaces/srv/WhiSrvIo "{addr: <register address>, operation: 0}"
+ros2 service call /modbus_io_request whi_interfaces/srv/WhiSrvIo "{io: {addr: <register address>, operation: 0}}"
 ```
 
 Write
 ```
-ros2 service call /modbus_io_request whi_interfaces/srv/WhiSrvIo "{addr: <register address>, operation: 1, level: <0/1>}"
+ros2 service call /modbus_io_request whi_interfaces/srv/WhiSrvIo "{io: {addr: <register address>, operation: 1, level: <0/1>}}"
+```
+
+```
+ros2 topic pub -1 /modbus_io_request whi_interfaces/msg/WhiIo "{addr: <register address>, operation: 1, level: <0/1>}"
 ```
 
 > NOTE: This node has the default namespace "whi_modbus_io"; therefore, its advertised service would be with this namespace if the service is configured as relative. For absolute service name, please set the service to absolute, like "/modbus_io_request"
