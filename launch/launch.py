@@ -13,12 +13,22 @@
 # limitations under the License.
 
 from launch import LaunchDescription
-from launch_ros.actions import Node
+from launch.actions import DeclareLaunchArgument
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
-from launch.actions import DeclareLaunchArgument
+from launch_ros.actions import Node
+from launch_ros.descriptions import ParameterFile
+from nav2_common.launch import RewrittenYaml
 
 def generate_launch_description():
+    # Input parameters declaration
+    namespace = LaunchConfiguration('namespace')
+
+    # Declare arguments
+    declare_namespace_arg = DeclareLaunchArgument(
+        'namespace', default_value='',
+        description='Top-level namespace'
+    )
     
     # Path to the config file
     config_file = PathJoinSubstitution([
@@ -27,15 +37,27 @@ def generate_launch_description():
         'config.yaml'
     ])
 
+    configured_params = ParameterFile(
+        RewrittenYaml(
+            source_file=config_file,
+            root_key=namespace,
+            param_rewrites={},
+            convert_types=True,
+        ),
+        allow_substs=True,
+    )
+
     # Node
     start_modbus_io_node = Node(
         package='whi_modbus_io',
         executable='whi_modbus_io_node',
         name='whi_modbus_io',
-        parameters=[config_file],
+        namespace=namespace,
+        parameters=[configured_params],
         output='screen',
     )
     
     return LaunchDescription([
+        declare_namespace_arg,
         start_modbus_io_node
     ])
