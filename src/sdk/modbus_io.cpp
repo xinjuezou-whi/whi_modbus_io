@@ -173,27 +173,35 @@ namespace whi_modbus_io
         composeData(Request->io, data);
         serial_inst_->write(data.data(), data.size());
         
-        int tryCount = 0;
-        const int MAX_TRY_COUNT = 3;
-        size_t count = 0;
-        while ((count = serial_inst_->available()) <= 0 && tryCount++ < MAX_TRY_COUNT)
+        if (Request->io.operation == whi_interfaces::msg::WhiIo::OPER_WRITE_WITH_FEEDBACK)
         {
-            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-        }
-
-        Response->level = 0;
-        Response->result = false;
-        if (tryCount < MAX_TRY_COUNT)
-        {
-            unsigned char rbuff[count];
-		    size_t readNum = serial_inst_->read(rbuff, count);
-            uint16_t crc = crc16(rbuff, readNum - 2);
-            uint16_t readCrc = rbuff[readNum - 2] | uint16_t(rbuff[readNum - 1] << 8);
-            if (crc == readCrc)
+            int tryCount = 0;
+            const int MAX_TRY_COUNT = 3;
+            size_t count = 0;
+            while ((count = serial_inst_->available()) <= 0 && tryCount++ < MAX_TRY_COUNT)
             {
-                Response->level = rbuff[3];
-                Response->result = true;
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
+
+            Response->level = 0;
+            Response->result = false;
+            if (tryCount < MAX_TRY_COUNT)
+            {
+                unsigned char rbuff[count];
+                size_t readNum = serial_inst_->read(rbuff, count);
+                uint16_t crc = crc16(rbuff, readNum - 2);
+                uint16_t readCrc = rbuff[readNum - 2] | uint16_t(rbuff[readNum - 1] << 8);
+                if (crc == readCrc)
+                {
+                    Response->level = rbuff[3];
+                    Response->result = true;
+                }
+            }
+        }
+        else
+        {
+            Response->level = Request->io.level;
+            Response->result = true;
         }
     }
 
