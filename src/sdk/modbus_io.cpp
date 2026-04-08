@@ -173,7 +173,8 @@ namespace whi_modbus_io
         composeData(Request->io, data);
         serial_inst_->write(data.data(), data.size());
         
-        if (Request->io.operation == whi_interfaces::msg::WhiIo::OPER_WRITE_WITH_FEEDBACK)
+        if (Request->io.operation == whi_interfaces::msg::WhiIo::OPER_READ ||
+            Request->io.operation == whi_interfaces::msg::WhiIo::OPER_WRITE_WITH_FEEDBACK)
         {
             int tryCount = 0;
             const int MAX_TRY_COUNT = 3;
