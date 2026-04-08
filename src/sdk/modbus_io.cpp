@@ -179,7 +179,7 @@ namespace whi_modbus_io
             int tryCount = 0;
             const int MAX_TRY_COUNT = 3;
             size_t count = 0;
-            while ((count = serial_inst_->available()) <= 0 && tryCount++ < MAX_TRY_COUNT)
+            while ((count = serial_inst_->available()) < 4 && tryCount++ < MAX_TRY_COUNT)
             {
                 std::this_thread::sleep_for(std::chrono::milliseconds(50));
             }
