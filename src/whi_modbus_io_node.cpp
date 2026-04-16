@@ -33,7 +33,7 @@ void signalHandler(int Signal)
 int main(int argc, char** argv)
 {
 	/// node version and copyright announcement
-	std::cout << "\nWHI ModBUS IO VERSION 02.03.3" << std::endl;
+	std::cout << "\nWHI ModBUS IO VERSION 02.03.4" << std::endl;
 	std::cout << "Copyright © 2023-2027 Wheel Hub Intelligent Co.,Ltd. All rights reserved\n" << std::endl;
 
 	/// ros infrastructure
