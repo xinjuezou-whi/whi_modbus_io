@@ -42,3 +42,18 @@ ros2 service call /modbus_io_request whi_interfaces/srv/WhiSrvIo "{io: {addr: <r
 ```
 ros2 topic pub -1 /modbus_io_request whi_interfaces/msg/WhiIo "{addr: <register address>, operation: 1, level: <0/1>}"
 ```
+
+## ModBUS server depending mode
+
+Please clone and build ModBUS server first
+```
+cd /<your_workspace>/src
+git clone https://github.com/xinjuezou-whi/whi_modbus_server.git
+cd ..
+colcon build --packages-select whi_modbus_server
+```
+
+Then launch the ModBUS server in advance
+```
+ros2 launch whi_modbus_server launch.py
+```
