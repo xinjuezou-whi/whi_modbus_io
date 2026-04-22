@@ -13,15 +13,19 @@ git clone https://github.com/xinjuezou-whi/whi_interfaces.git
 ```
 
 ## Parameters
+
+This node can run stand-alone, which occupies the serial resource. Under multiple nodes or device drivers scenario, please configure as the `server_depend` mode, which depends the ModBUS server and does not occupy the serial resource
 ```
-whi_modbus_io:
-  ros__parameters:
-    service: io_request
-    init_levels: /home/nvidia/ros2_ws/src/whi_modbus_io/config/init_levels.yaml
-    hardware_interface:
-      module: DAQM-43xx
-      port: /dev/ttyUART_485_2
-      baudrate: 9600
+init_levels: /home/nvidia/ros2_ws/src/whi_modbus_io/config/init_levels.yaml
+hardware_interface:
+  module: DAQM-43xx
+  device_addr: 0x07
+  modbus_instance: server_depend
+  server_depend:
+    modbus_service: modbus_request
+  stand_alone:
+    port: /dev/ttyUART_485_1
+    baudrate: 115200
 ```
 
 ## Usage
@@ -38,5 +42,3 @@ ros2 service call /modbus_io_request whi_interfaces/srv/WhiSrvIo "{io: {addr: <r
 ```
 ros2 topic pub -1 /modbus_io_request whi_interfaces/msg/WhiIo "{addr: <register address>, operation: 1, level: <0/1>}"
 ```
-
-> NOTE: This node has the default namespace "whi_modbus_io"; therefore, its advertised service would be with this namespace if the service is configured as relative. For absolute service name, please set the service to absolute, like "/modbus_io_request"
