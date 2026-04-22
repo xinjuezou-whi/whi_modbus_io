@@ -63,7 +63,7 @@ namespace whi_modbus_io
             request->io.level = it.second;
             request->io.operation = whi_interfaces::msg::WhiIo::OPER_WRITE;
             auto response = std::make_shared<whi_interfaces::srv::WhiSrvIo::Response>();
-            onServiceIo(request, response);
+            onServiceIo(nullptr, nullptr, request);
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
@@ -76,8 +76,6 @@ namespace whi_modbus_io
     void ModbusIo::init()
     {
         // params
-        std::string service = node_handle_->declare_parameter("service", "modbus_io_request");
-        std::string topic = node_handle_->declare_parameter("topic", "modbus_io_request");
         std::string levelConfig = node_handle_->declare_parameter("init_levels", "init_levels.yaml");
         if (!levelConfig.empty())
         {
@@ -85,27 +83,35 @@ namespace whi_modbus_io
         }
         module_ = node_handle_->declare_parameter("hardware_interface.module", "");
         device_addr_ = node_handle_->declare_parameter("hardware_interface.device_addr", 0x01);
-        serial_port_ = node_handle_->declare_parameter("hardware_interface.port", "/dev/ttyUSB0");
-        baudrate_ = node_handle_->declare_parameter("hardware_interface.baudrate", 9600);
 
-        // serial
-	    try
-	    {
-		    serial_inst_ = std::make_unique<serial::Serial>(serial_port_, baudrate_, serial::Timeout::simpleTimeout(500));
-	    }
-	    catch (serial::IOException& e)
-	    {
-		    RCLCPP_FATAL_STREAM(node_handle_->get_logger(), "\033[1;31" << "failed to open serial " <<
-                serial_port_ << "\033[0m");
-	    }
-
-        if (serial_inst_)
+        std::string modbusInstance = node_handle_->declare_parameter("hardware_interface.modbus_instance", "stand_alone");
+        if (modbusInstance == "stand_alone")
         {
-            service_ = node_handle_->create_service<whi_interfaces::srv::WhiSrvIo>(service, 
-                std::bind(&ModbusIo::onServiceIo, this, std::placeholders::_1, std::placeholders::_2));
-            subscriber_ = node_handle_->create_subscription<whi_interfaces::msg::WhiIo>(
-                topic, 10, std::bind(&ModbusIo::callbackSub, this, std::placeholders::_1));
+            serial_port_ = node_handle_->declare_parameter("hardware_interface.stand_alone.port", "/dev/ttyUSB0");
+            baudrate_ = node_handle_->declare_parameter("hardware_interface.stand_alone.baudrate", 9600);
+
+            // serial
+            try
+            {
+                serial_inst_ = std::make_unique<serial::Serial>(serial_port_, baudrate_, serial::Timeout::simpleTimeout(500));
+            }
+            catch (serial::IOException& e)
+            {
+                RCLCPP_FATAL_STREAM(node_handle_->get_logger(), "\033[1;31" << "failed to open serial " <<
+                    serial_port_ << "\033[0m");
+            }
         }
+        else
+        {
+            std::string serviceName = node_handle_->declare_parameter("hardware_interface.server_depend.modbus_service", "modbus_request");
+            modbus_client_ = node_handle_->create_client<whi_interfaces::srv::WhiSrvModBus>(serviceName);
+        }
+
+        std::string name("modbus_io_request");
+        service_ = node_handle_->create_service<whi_interfaces::srv::WhiSrvIo>(name, 
+            std::bind(&ModbusIo::onServiceIo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+        subscriber_ = node_handle_->create_subscription<whi_interfaces::msg::WhiIo>(
+            name, 10, std::bind(&ModbusIo::callbackSub, this, std::placeholders::_1));
     }
 
     bool ModbusIo::readInitLevels(const std::string& Config)
@@ -133,9 +139,9 @@ namespace whi_modbus_io
 
     void ModbusIo::composeData(const whi_interfaces::msg::WhiIo& Msg, std::array<uint8_t, 8>& Data)
     {
+        Data[0] = uint8_t(device_addr_);
         if (Msg.operation == whi_interfaces::msg::WhiIo::OPER_READ)
         {
-            Data[0] = uint8_t(device_addr_);
             if (Msg.addr < 17)
             {
                 Data[1] = 0x02;
@@ -148,74 +154,139 @@ namespace whi_modbus_io
             Data[3] = uint8_t(Msg.addr - 1);
             Data[4] = 0;
             Data[5] = 0x01;
-            uint16_t crc = crc16(Data.data(), Data.size() - 2);
-            Data[6] = uint8_t(crc);
-            Data[7] = uint8_t(crc >> 8);
         }
         else if (Msg.operation == whi_interfaces::msg::WhiIo::OPER_WRITE)
         {
-            Data[0] = uint8_t(device_addr_);
             Data[1] = 0x05;
             Data[2] = 0;
             Data[3] = uint8_t(Msg.addr - 1);
             Data[4] = 0;
             Data[5] = Msg.level;
-            uint16_t crc = crc16(Data.data(), Data.size() - 2);
-            Data[6] = uint8_t(crc);
-            Data[7] = uint8_t(crc >> 8);
         }
+        uint16_t crc = crc16(Data.data(), Data.size() - 2);
+        Data[6] = uint8_t(crc);
+        Data[7] = uint8_t(crc >> 8);
     }
 
-    void ModbusIo::onServiceIo(const std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Request> Request,
-        std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Response> Response)
+    void ModbusIo::onServiceIo(std::shared_ptr<rclcpp::Service<whi_interfaces::srv::WhiSrvIo>> Service,
+        const std::shared_ptr<rmw_request_id_t> RequestHeader,
+        const std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Request> Request)
     {
         std::array<uint8_t, 8> data;
         composeData(Request->io, data);
-        try
-        {
-            serial_inst_->write(data.data(), data.size());
-            
-            if (Request->io.operation == whi_interfaces::msg::WhiIo::OPER_READ ||
-                Request->io.operation == whi_interfaces::msg::WhiIo::OPER_WRITE_WITH_FEEDBACK)
-            {
-                int tryCount = 0;
-                const int MAX_TRY_COUNT = 3;
-                size_t count = 0;
-                while ((count = serial_inst_->available()) < 4 && tryCount++ < MAX_TRY_COUNT)
-                {
-                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                }
 
-                Response->level = 0;
-                Response->result = false;
-                if (tryCount < MAX_TRY_COUNT)
+        if (serial_inst_)
+        {
+            try
+            {
+                serial_inst_->write(data.data(), data.size());
+#ifdef DEBUG
+    std::cout << "write ";
+    for (const auto& it : data)
+    {
+        std::cout << std::dec << int(it) << ",";
+    }
+    std::cout << std::endl;
+#endif
+                whi_interfaces::srv::WhiSrvIo::Response response;
+                if (Request->io.operation == whi_interfaces::msg::WhiIo::OPER_READ ||
+                    Request->io.operation == whi_interfaces::msg::WhiIo::OPER_WRITE_WITH_FEEDBACK)
                 {
-                    unsigned char rbuff[count];
-                    size_t readNum = serial_inst_->read(rbuff, count);
-                    uint16_t crc = crc16(rbuff, readNum - 2);
-                    uint16_t readCrc = rbuff[readNum - 2] | uint16_t(rbuff[readNum - 1] << 8);
-                    if (crc == readCrc)
+                    int tryCount = 0;
+                    const int MAX_TRY_COUNT = 3;
+                    size_t count = 0;
+                    while ((count = serial_inst_->available()) < 4 && tryCount++ < MAX_TRY_COUNT)
                     {
-                        Response->level = rbuff[3];
-                        Response->result = true;
+                        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                    }
+
+                    response.level = 0;
+                    response.result = false;
+                    if (tryCount < MAX_TRY_COUNT)
+                    {
+                        unsigned char rbuff[count];
+                        size_t readNum = serial_inst_->read(rbuff, count);
+                        uint16_t crc = crc16(rbuff, readNum - 2);
+                        uint16_t readCrc = rbuff[readNum - 2] | uint16_t(rbuff[readNum - 1] << 8);
+                        if (crc == readCrc)
+                        {
+                            response.level = rbuff[3];
+                            response.result = true;
+                        }
+#ifdef DEBUG
+    std::cout << "read " << readNum << std::endl;
+    for (int i = 0; i < readNum; ++i)
+    {
+        std::cout << std::hex << int(rbuff[i]) << ",";
+    }
+    std::cout << std::endl;
+#endif
                     }
                 }
+                else
+                {
+                    response.level = Request->io.level;
+                    response.result = true;
+                }
+
+                if (Service)
+                {
+                    Service->send_response(*RequestHeader, response);
+                }
             }
-            else
+            catch (const serial::IOException& e) 
             {
-                Response->level = Request->io.level;
-                Response->result = true;
+                RCLCPP_FATAL_STREAM(node_handle_->get_logger(), "\033[1;31" << "ModBUS IO Exception: " <<
+                    e.what() << "\033[0m");
+            }
+            catch (const serial::SerialException& e) 
+            {
+                RCLCPP_FATAL_STREAM(node_handle_->get_logger(), "\033[1;31" << "ModBUS Serial Exception: " <<
+                    e.what() << "\033[0m");
             }
         }
-        catch (const serial::IOException& e) 
+        else if (modbus_client_)
         {
-            std::cerr << "ModBUS IO Exception: " << e.what() << std::endl;
-            printf("+++++++++++++++++ModBUS IO Exception . %s \n", e.what() );
-        }
-        catch (const serial::SerialException& e) 
-        {
-            std::cerr << "ModBUS Serial Exception: " << e.what() << std::endl;
-            printf("+++++++++++++++++ModBUS Serial Exception. %s \n", e.what() );
+            auto request = std::make_shared<whi_interfaces::srv::WhiSrvModBus::Request>();
+            request->instance.device = data[0];
+            request->instance.func = data[1];
+            request->instance.crc_size = 2;
+            request->instance.data = std::vector<uint8_t>(data.begin() + 2, data.end());
+            modbus_client_->async_send_request(
+                request,
+                [this, Service, RequestHeader](rclcpp::Client<whi_interfaces::srv::WhiSrvModBus>::SharedFuture future)
+                {
+                    whi_interfaces::srv::WhiSrvIo::Response response;
+
+                    if (future.get()->result)
+                    {
+                        auto returnSize = future.get()->data.size();
+                        uint16_t crc = crc16(future.get()->data.data(), returnSize - 2);
+                        uint16_t readCrc = future.get()->data[returnSize - 2] | uint16_t(future.get()->data[returnSize - 1] << 8);
+                        if (crc == readCrc)
+                        {
+                            response.level = future.get()->data[3];
+                            response.result = true;
+                        }
+                        else
+                        {
+                            response.level = 0;
+                            response.result = false;
+                        }
+                    }
+                    else
+                    {
+                        response.level = 0;
+                        response.result = false;
+
+                        RCLCPP_ERROR(node_handle_->get_logger(), "ModBUS service failed");
+                    }
+
+                    if (Service)
+                    {
+                        Service->send_response(*RequestHeader, response);
+                    }
+                });
         }
     }
 
@@ -223,6 +294,18 @@ namespace whi_modbus_io
     {
         std::array<uint8_t, 8> data;
         composeData(*Msg, data);
-        serial_inst_->write(data.data(), data.size());
+
+        if (serial_inst_)
+        {
+            serial_inst_->write(data.data(), data.size());
+        }
+        else if (modbus_client_)
+        {
+            auto request = std::make_shared<whi_interfaces::srv::WhiSrvModBus::Request>();
+            request->instance.device = data[0];
+            request->instance.func = data[1];
+            request->instance.data = std::vector<uint8_t>(data.begin() + 2, data.end());
+            auto result = modbus_client_->async_send_request(request);
+        }
     }
 } // namespace whi_modbus_io
