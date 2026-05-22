@@ -112,6 +112,8 @@ namespace whi_modbus_io
             std::bind(&ModbusIo::onServiceIo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
         subscriber_ = node_handle_->create_subscription<whi_interfaces::msg::WhiIo>(
             name, 10, std::bind(&ModbusIo::callbackSub, this, std::placeholders::_1));
+
+        debug_print_comm_ = node_handle_->declare_parameter("debug.print_comm", false);
     }
 
     bool ModbusIo::readInitLevels(const std::string& Config)
@@ -180,14 +182,16 @@ namespace whi_modbus_io
             try
             {
                 serial_inst_->write(data.data(), data.size());
-#ifdef DEBUG
-    std::cout << "write ";
-    for (const auto& it : data)
-    {
-        std::cout << std::dec << int(it) << ",";
-    }
-    std::cout << std::endl;
-#endif
+                if (debug_print_comm_)
+                {
+                    std::cout << "write ";
+                    for (const auto& it : data)
+                    {
+                        std::cout << std::dec << int(it) << ",";
+                    }
+                    std::cout << std::endl;
+                }
+
                 whi_interfaces::srv::WhiSrvIo::Response response;
                 if (Request->io.operation == whi_interfaces::msg::WhiIo::OPER_READ ||
                     Request->io.operation == whi_interfaces::msg::WhiIo::OPER_WRITE_WITH_FEEDBACK)
@@ -198,6 +202,10 @@ namespace whi_modbus_io
                     while ((count = serial_inst_->available()) < 4 && tryCount++ < MAX_TRY_COUNT)
                     {
                         std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                        if (debug_print_comm_)
+                        {
+                            std::cout << "waiting for response, try count: " << tryCount << std::endl;
+                        }
                     }
 
                     response.level = 0;
@@ -213,14 +221,16 @@ namespace whi_modbus_io
                             response.level = rbuff[3];
                             response.result = true;
                         }
-#ifdef DEBUG
-    std::cout << "read " << readNum << std::endl;
-    for (int i = 0; i < readNum; ++i)
-    {
-        std::cout << std::hex << int(rbuff[i]) << ",";
-    }
-    std::cout << std::endl;
-#endif
+
+                        if (debug_print_comm_)
+                        {
+                            std::cout << "read " << readNum << std::endl;
+                            for (int i = 0; i < readNum; ++i)
+                            {
+                                std::cout << std::hex << int(rbuff[i]) << ",";
+                            }
+                            std::cout << std::endl;
+                        }
                     }
                 }
                 else

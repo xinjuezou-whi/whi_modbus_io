@@ -64,5 +64,6 @@ namespace whi_modbus_io
         rclcpp::Service<whi_interfaces::srv::WhiSrvIo>::SharedPtr service_{ nullptr};
         rclcpp::Subscription<whi_interfaces::msg::WhiIo>::SharedPtr subscriber_{ nullptr };
         std::map<int, int> init_levels_map_;
+        bool debug_print_comm_{ false };
 	};
 } // namespace whi_modbus_io
