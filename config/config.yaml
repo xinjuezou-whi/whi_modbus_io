@@ -10,3 +10,5 @@ whi_modbus_io:
       stand_alone:
         port: /dev/ttyUART_485_1
         baudrate: 115200
+    debug:
+      print_comm: false

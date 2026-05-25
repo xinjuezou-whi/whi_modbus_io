@@ -47,25 +47,25 @@ namespace whi_modbus_io
         return crc;
     }
 
-    ModbusIo::ModbusIo(std::shared_ptr<rclcpp::Node>& NodeHandle)
-        : node_handle_(NodeHandle)
+    ModbusIo::ModbusIo(const std::string& NodeName/* = "whi_modbus_io"*/,
+        const rclcpp::NodeOptions& Options/* = rclcpp::NodeOptions()*/)
+        : rclcpp_lifecycle::LifecycleNode(NodeName, "", Options)
     {
-        init();
+        // params
+        declare_parameter("init_levels", "init_levels.yaml");
+        declare_parameter("hardware_interface.module", "");
+        declare_parameter("hardware_interface.device_addr", 0x01);
+        declare_parameter("hardware_interface.modbus_instance", "stand_alone");
+        declare_parameter("hardware_interface.stand_alone.port", "/dev/ttyUSB0");
+        declare_parameter("hardware_interface.stand_alone.baudrate", 9600);
+        declare_parameter("hardware_interface.server_depend.modbus_service", "modbus_request");
+        declare_parameter("debug.print_comm", false);
     }
 
     ModbusIo::~ModbusIo()
     {
         // reset to init level
-        for (const auto& it : init_levels_map_)
-        {
-            auto request = std::make_shared<whi_interfaces::srv::WhiSrvIo::Request>();
-            request->io.addr = it.first;
-            request->io.level = it.second;
-            request->io.operation = whi_interfaces::msg::WhiIo::OPER_WRITE;
-            auto response = std::make_shared<whi_interfaces::srv::WhiSrvIo::Response>();
-            onServiceIo(nullptr, nullptr, request);
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(800));
+        resetToInitLevel();
 
 	    if (serial_inst_)
 	    {
@@ -73,22 +73,95 @@ namespace whi_modbus_io
 	    }
     }
 
+    void ModbusIo::createBond()
+    {
+        RCLCPP_INFO(get_logger(), "Creating bond (%s) to lifecycle manager.", get_name());
+
+        bond_ = std::make_shared<bond::Bond>(std::string("bond"), get_name(), shared_from_this());
+
+        bond_->setHeartbeatPeriod(0.1);
+        bond_->setHeartbeatTimeout(4.0);
+        bond_->start();
+    }
+
+    void ModbusIo::destroyBond()
+    {
+        RCLCPP_INFO(get_logger(), "Destroying bond (%s) to lifecycle manager.", get_name());
+
+        if (bond_)
+        {
+            bond_.reset();
+        }
+    }
+
+    CallbackReturn ModbusIo::on_configure(const rclcpp_lifecycle::State&)
+    {
+        RCLCPP_INFO(get_logger(), "Configuring");
+
+        init();
+        
+        return CallbackReturn::SUCCESS;
+    }
+
+    CallbackReturn ModbusIo::on_activate(const rclcpp_lifecycle::State&)
+    {
+        RCLCPP_INFO(get_logger(), "Activating");
+
+        createBond();
+
+        return CallbackReturn::SUCCESS;
+    }
+
+    CallbackReturn ModbusIo::on_deactivate(const rclcpp_lifecycle::State&)
+    {
+        RCLCPP_INFO(get_logger(), "Deactivating");
+
+        // reset to init level
+        resetToInitLevel();
+
+        if (serial_inst_)
+	    {
+		    serial_inst_->close();
+	    }
+
+        destroyBond();
+
+        return CallbackReturn::SUCCESS;
+    }
+
+    CallbackReturn ModbusIo::on_cleanup(const rclcpp_lifecycle::State&)
+    {
+        RCLCPP_INFO(get_logger(), "Cleaning up");
+
+        subscriber_.reset();
+        service_.reset();
+
+        return CallbackReturn::SUCCESS;
+    }
+
+    CallbackReturn ModbusIo::on_shutdown(const rclcpp_lifecycle::State&)
+    {
+        RCLCPP_INFO(get_logger(), "Shutting down");
+
+        return CallbackReturn::SUCCESS;
+    }
+
     void ModbusIo::init()
     {
         // params
-        std::string levelConfig = node_handle_->declare_parameter("init_levels", "init_levels.yaml");
+        std::string levelConfig = get_parameter("init_levels").as_string();
         if (!levelConfig.empty())
         {
             readInitLevels(levelConfig);
         }
-        module_ = node_handle_->declare_parameter("hardware_interface.module", "");
-        device_addr_ = node_handle_->declare_parameter("hardware_interface.device_addr", 0x01);
+        module_ = get_parameter("hardware_interface.module").as_string();
+        device_addr_ = get_parameter("hardware_interface.device_addr").as_int();
 
-        std::string modbusInstance = node_handle_->declare_parameter("hardware_interface.modbus_instance", "stand_alone");
+        std::string modbusInstance = get_parameter("hardware_interface.modbus_instance").as_string();
         if (modbusInstance == "stand_alone")
         {
-            serial_port_ = node_handle_->declare_parameter("hardware_interface.stand_alone.port", "/dev/ttyUSB0");
-            baudrate_ = node_handle_->declare_parameter("hardware_interface.stand_alone.baudrate", 9600);
+            serial_port_ = get_parameter("hardware_interface.stand_alone.port").as_string();
+            baudrate_ = get_parameter("hardware_interface.stand_alone.baudrate").as_int();
 
             // serial
             try
@@ -97,23 +170,23 @@ namespace whi_modbus_io
             }
             catch (serial::IOException& e)
             {
-                RCLCPP_FATAL_STREAM(node_handle_->get_logger(), "\033[1;31" << "failed to open serial " <<
+                RCLCPP_FATAL_STREAM(get_logger(), "\033[1;31" << "failed to open serial " <<
                     serial_port_ << "\033[0m");
             }
         }
         else
         {
-            std::string serviceName = node_handle_->declare_parameter("hardware_interface.server_depend.modbus_service", "modbus_request");
-            modbus_client_ = node_handle_->create_client<whi_interfaces::srv::WhiSrvModBus>(serviceName);
+            std::string serviceName = get_parameter("hardware_interface.server_depend.modbus_service").as_string();
+            modbus_client_ = create_client<whi_interfaces::srv::WhiSrvModBus>(serviceName);
         }
 
         std::string name("modbus_io_request");
-        service_ = node_handle_->create_service<whi_interfaces::srv::WhiSrvIo>(name, 
+        service_ = create_service<whi_interfaces::srv::WhiSrvIo>(name, 
             std::bind(&ModbusIo::onServiceIo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-        subscriber_ = node_handle_->create_subscription<whi_interfaces::msg::WhiIo>(
+        subscriber_ = create_subscription<whi_interfaces::msg::WhiIo>(
             name, 10, std::bind(&ModbusIo::callbackSub, this, std::placeholders::_1));
 
-        debug_print_comm_ = node_handle_->declare_parameter("debug.print_comm", false);
+        debug_print_comm_ = get_parameter("debug.print_comm").as_bool();
     }
 
     bool ModbusIo::readInitLevels(const std::string& Config)
@@ -246,12 +319,12 @@ namespace whi_modbus_io
             }
             catch (const serial::IOException& e) 
             {
-                RCLCPP_FATAL_STREAM(node_handle_->get_logger(), "\033[1;31" << "ModBUS IO Exception: " <<
+                RCLCPP_FATAL_STREAM(get_logger(), "\033[1;31" << "ModBUS IO Exception: " <<
                     e.what() << "\033[0m");
             }
             catch (const serial::SerialException& e) 
             {
-                RCLCPP_FATAL_STREAM(node_handle_->get_logger(), "\033[1;31" << "ModBUS Serial Exception: " <<
+                RCLCPP_FATAL_STREAM(get_logger(), "\033[1;31" << "ModBUS Serial Exception: " <<
                     e.what() << "\033[0m");
             }
         }
@@ -289,7 +362,7 @@ namespace whi_modbus_io
                         response.level = 0;
                         response.result = false;
 
-                        RCLCPP_ERROR(node_handle_->get_logger(), "ModBUS service failed");
+                        RCLCPP_ERROR(get_logger(), "ModBUS service failed");
                     }
 
                     if (Service)
@@ -316,6 +389,19 @@ namespace whi_modbus_io
             request->instance.func = data[1];
             request->instance.data = std::vector<uint8_t>(data.begin() + 2, data.end());
             auto result = modbus_client_->async_send_request(request);
+        }
+    }
+
+    void ModbusIo::resetToInitLevel()
+    {
+        for (const auto& it : init_levels_map_)
+        {
+            auto request = std::make_shared<whi_interfaces::srv::WhiSrvIo::Request>();
+            request->io.addr = it.first;
+            request->io.level = it.second;
+            request->io.operation = whi_interfaces::msg::WhiIo::OPER_WRITE;
+
+            onServiceIo(nullptr, nullptr, request);
         }
     }
 } // namespace whi_modbus_io

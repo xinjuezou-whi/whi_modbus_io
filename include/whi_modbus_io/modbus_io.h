@@ -26,6 +26,8 @@ Changelog:
 #include <whi_interfaces/srv/whi_srv_mod_bus.hpp>
 
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp_lifecycle/lifecycle_node.hpp>
+#include <bondcpp/bond.hpp>
 #include <serial/serial.h>
 
 #include <map>
@@ -36,12 +38,26 @@ Changelog:
 
 namespace whi_modbus_io
 {
-	class ModbusIo
+    using CallbackReturn = rclcpp_lifecycle::node_interfaces::LifecycleNodeInterface::CallbackReturn;
+
+	class ModbusIo : public rclcpp_lifecycle::LifecycleNode
 	{
     public:
         ModbusIo() = delete;
-        ModbusIo(std::shared_ptr<rclcpp::Node>& NodeHandle);
+        ModbusIo(const std::string& NodeName = "whi_modbus_io",
+            const rclcpp::NodeOptions& Options = rclcpp::NodeOptions());
         ~ModbusIo();
+
+    public:
+        // Create bond connection for nav2 lifecycle manager
+        void createBond();
+        // Destroy bond connection for nav2 lifecycle manager
+        void destroyBond();
+        CallbackReturn on_configure(const rclcpp_lifecycle::State&) override;
+        CallbackReturn on_activate(const rclcpp_lifecycle::State&) override;
+        CallbackReturn on_deactivate(const rclcpp_lifecycle::State&) override;
+        CallbackReturn on_cleanup(const rclcpp_lifecycle::State&) override;
+        CallbackReturn on_shutdown(const rclcpp_lifecycle::State&) override;
 
     protected:
         void init();
@@ -51,10 +67,9 @@ namespace whi_modbus_io
             const std::shared_ptr<rmw_request_id_t> RequestHeader,
             const std::shared_ptr<whi_interfaces::srv::WhiSrvIo::Request> Request); // nested service call type
         void callbackSub(const whi_interfaces::msg::WhiIo::SharedPtr Msg);
-        void request(const std::array<uint8_t, 8>& Data);
+        void resetToInitLevel();
 
     protected:
-        std::shared_ptr<rclcpp::Node> node_handle_{ nullptr };
         std::string module_;
         int device_addr_{ 0x01 };
 	    std::string serial_port_;
@@ -65,5 +80,8 @@ namespace whi_modbus_io
         rclcpp::Subscription<whi_interfaces::msg::WhiIo>::SharedPtr subscriber_{ nullptr };
         std::map<int, int> init_levels_map_;
         bool debug_print_comm_{ false };
+
+        // Connection to tell that server is still up
+        std::shared_ptr<bond::Bond> bond_{nullptr};
 	};
 } // namespace whi_modbus_io
