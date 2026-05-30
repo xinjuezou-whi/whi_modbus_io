@@ -60,6 +60,9 @@ namespace whi_modbus_io
         declare_parameter("hardware_interface.stand_alone.baudrate", 9600);
         declare_parameter("hardware_interface.server_depend.modbus_service", "modbus_request");
         declare_parameter("debug.print_comm", false);
+        declare_parameter("with_bond", true);
+        declare_parameter("heart_beat_period", 0.1);
+        declare_parameter("heart_beat_timeout", 4.0);
     }
 
     ModbusIo::~ModbusIo()
@@ -75,22 +78,28 @@ namespace whi_modbus_io
 
     void ModbusIo::createBond()
     {
-        RCLCPP_INFO(get_logger(), "Creating bond (%s) to lifecycle manager.", get_name());
+        if (with_bond_)
+        {
+            RCLCPP_INFO(get_logger(), "Creating bond (%s) to lifecycle manager.", get_name());
 
-        bond_ = std::make_shared<bond::Bond>(std::string("bond"), get_name(), shared_from_this());
+            bond_ = std::make_shared<bond::Bond>(std::string("bond"), get_name(), shared_from_this());
 
-        bond_->setHeartbeatPeriod(0.1);
-        bond_->setHeartbeatTimeout(4.0);
-        bond_->start();
+            bond_->setHeartbeatPeriod(heart_beat_period_);
+            bond_->setHeartbeatTimeout(heart_beat_timeout_);
+            bond_->start();
+        }
     }
 
     void ModbusIo::destroyBond()
     {
-        RCLCPP_INFO(get_logger(), "Destroying bond (%s) to lifecycle manager.", get_name());
-
-        if (bond_)
+        if (with_bond_)
         {
-            bond_.reset();
+            RCLCPP_INFO(get_logger(), "Destroying bond (%s) to lifecycle manager.", get_name());
+
+            if (bond_)
+            {
+                bond_.reset();
+            }
         }
     }
 
@@ -187,6 +196,9 @@ namespace whi_modbus_io
             name, 10, std::bind(&ModbusIo::callbackSub, this, std::placeholders::_1));
 
         debug_print_comm_ = get_parameter("debug.print_comm").as_bool();
+        with_bond_ = get_parameter("with_bond").as_bool();
+        heart_beat_period_ = get_parameter("heart_beat_period").as_double();
+        heart_beat_timeout_ = get_parameter("heart_beat_timeout").as_double();
     }
 
     bool ModbusIo::readInitLevels(const std::string& Config)

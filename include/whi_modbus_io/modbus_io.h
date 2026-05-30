@@ -81,6 +81,9 @@ namespace whi_modbus_io
         std::map<int, int> init_levels_map_;
         bool debug_print_comm_{ false };
 
+        bool with_bond_{ true };
+        double heart_beat_period_{ 0.1 };
+        double heart_beat_timeout_{ 4.0 };
         // Connection to tell that server is still up
         std::shared_ptr<bond::Bond> bond_{nullptr};
 	};
