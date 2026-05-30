@@ -197,8 +197,11 @@ namespace whi_modbus_io
 
         debug_print_comm_ = get_parameter("debug.print_comm").as_bool();
         with_bond_ = get_parameter("with_bond").as_bool();
-        heart_beat_period_ = get_parameter("heart_beat_period").as_double();
-        heart_beat_timeout_ = get_parameter("heart_beat_timeout").as_double();
+        if (with_bond_)
+        {
+            heart_beat_period_ = get_parameter("heart_beat_period").as_double();
+            heart_beat_timeout_ = get_parameter("heart_beat_timeout").as_double();
+        }
     }
 
     bool ModbusIo::readInitLevels(const std::string& Config)
